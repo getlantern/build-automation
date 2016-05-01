@@ -1,0 +1,5 @@
+*.pyc
+*.yml
+.ropeproject
+venv
+
