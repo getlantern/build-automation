@@ -1,5 +1,8 @@
 #! /usr/bin/env python
 
+import argparse
+import httplib
+import json
 import os
 import string
 import time
@@ -19,15 +22,15 @@ class Config:
     def last_built(self, branch):
         v = self.store.get(branch)
         if v is None:
-            return None
-        return v.get('last-built')
+            return None, None
+        return v.get('commit'), v.get('s3links')
 
     def set_last_built(self, branch, commit, s3links):
         v = self.store.get(branch)
         if v is None:
             v = {}
-        v['last-built'] = commit
-        v['last-s3links'] = s3links
+        v['commit'] = commit
+        v['s3links'] = s3links
         self.store[branch] = v
 
     def save(self):
@@ -53,14 +56,15 @@ def execute(command, print_output=True):
 execute.cwd = None
 
 
-def build(branch, version):
+def build(branch, version, dry_run):
     execute('git checkout ' + branch)
-    execute('VERSION=' + version + ' make packages')
+    if not dry_run:
+        execute('VERSION=' + version + ' make package-windows package-linux')
 
 
-def upload(version):
+def upload(version, bucket, dry_run):
     installers = map(lambda i: i.replace('VERSION', version), [
-        'lantern-installer.dmg',
+        # 'lantern-installer.dmg',
         'lantern-installer.exe',
         'lantern_VERSION_amd64.deb',
         'lantern_VERSION_i386.deb'
@@ -70,45 +74,87 @@ def upload(version):
     for installer in installers:
         local = prefix + installer
         cp = 'cp ' + installer + ' ' + local
-        put = 's3cmd put ' + local + " s3://lantern-continuous-build -P"
+        put = 's3cmd put ' + local + " -P s3://" + bucket
         rm = 'rm ' + local
-        execute(cp)
-        execute(put)
-        execute(rm)
-        links.append("s3://lantern-continuous-build/" + local)
+        if not dry_run:
+            execute(cp)
+            execute(put)
+            execute(rm)
+        links.append("http://" + bucket + ".s3.amazonaws.com/" + local)
 
     return links
 
 
 def fetch():
-    # execute('git fetch -p')
+    execute('git fetch -p')
     output = execute('git branch -rl | grep -E "release-\d*.\d*.\d*$"')
     branches = map(lambda l: l.strip(), output)
     return map(lambda b: (b, execute('git show -s --format=%h ' + b)[0].strip()), branches)
 
 
-def notify():
-    pass
+def send_to_slack(title, fallback, text):
+    host = "hooks.slack.com"
+    path = "/services/T02783BRS/B15AN4RFH/uTu4tjW9sDdg7Y091asKmoJb"
+    payload = {"fallback": fallback,
+               "title": title,
+               "text": text}
+    data = {'attachments': [payload]}
+    conn = httplib.HTTPSConnection(host, 443)
+    conn.connect()
+    conn.request('POST', path, headers={'content-type': 'application/json'}, body=json.dumps(data))
+    response = conn.getresponse()
+    if response.status != httplib.OK:
+        raise RuntimeError("invalid response status %d" % response.status)
+
+
+def notify(processed):
+    title_tmpl = string.Template('Latest installers of <https://github.com/getlantern/lantern/tree/$branch|$branch>:\r\n$links\r\n')
+    text_tmpl = string.Template('Changes since $last_commit:\r\n$commits')
+    for i in processed:
+        branch = i['branch'].split('/')[1]
+        pretty_links = map(lambda l: '<' + l + '|' + l.split('_', 3)[3] + '>', i['links'])
+        title = title_tmpl.substitute({'branch': branch, 'links': '\r\n'.join(pretty_links)})
+        fmt = '--format="%h: (%an) %s, %ar"'
+        if i['last_commit'] is None:
+            commits = execute('git log -n 10 %s %s' % (fmt, i['commit']))
+        else:
+            commits = execute('git log --no-pager %s %s..%s' % (fmt, i['last_commit'], i['commit']))
+
+        pretty_commits = map(lambda line: "<https://github.com/getlantern/lantern/commit/%s|%s>:%s" % (line.split(':')[0], line.split(':')[0], line.split(':')[1]), commits)
+        pretty_commits.append('<https://github.com/getlantern/lantern/commits/%s|more...>\r\n' % branch)
+        text = text_tmpl.substitute({'last_commit': i['last_commit'], 'commits': ''.join(pretty_commits)})
+        send_to_slack(title, "commits for %s" % i['commit'], text)
+
+
+def process(branch, commit, dry_run):
+    version = string.split(branch, '-')[1] + '_' + commit
+    build(branch, version, dry_run)
+    links = upload(version, "lantern-continuous-build", dry_run)
+    return links
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dry-run', dest='dry_run', action='store_true', help='not build/upload')
+    args = parser.parse_args()
+
     config = Config("./result.yml")
     execute.cwd = "../lantern"
+    processed = []
     for branch, commit in fetch():
-        last = config.last_built(branch)
-        if commit == last:
+        last_commit, last_links = config.last_built(branch)
+        if commit == last_commit:
             print "skipping branch %s: head %s already uploaded" % (branch, commit)
         else:
-            print "build branch %s: head %s, prev %s" % (branch, commit, last)
-            version = string.split(branch, '-')[1] + '_' + commit
-            build(branch, version)
-            links = upload(version)
-            if len(links) == 0:
-                print "***Nothing uploaded"
-            else:
-                config.set_last_built(branch, commit, links)
+            print "build branch %s: head %s is different from prev %s" % (branch, commit, last_commit)
+            links = process(branch, commit, dry_run=args.dry_run)
+            processed.append({'branch': branch, 'commit': commit, 'links': links, 'last_commit': last_commit, 'last_links': last_links})
 
-    config.save()
+    notify(processed)
+    if not args.dry_run:
+        for i in processed:
+            config.set_last_built(i['branch'], i['commit'], i['links'])
+        config.save()
 
 
 if __name__ == '__main__':
