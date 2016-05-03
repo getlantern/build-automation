@@ -7,7 +7,7 @@ Script to check for updates of release branches of Lantern repo, build and uploa
 # Install Homebrew
 /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 # Install/update required packages
-brew install Caskroom/cask/virtualbox docker-machine docker python go nodejs s3cmd
+brew install Caskroom/cask/virtualbox docker-machine docker python go nodejs s3cmd Caskroom/cask/java android-ndk
 pip install pyyaml
 npm install -g appdmg svgexport
 # Create docker-machine. Be sure to provide large enough disk and sufficient cpu/memory.
