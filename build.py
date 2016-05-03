@@ -126,7 +126,7 @@ def notify(processed):
     if processed['last_commit'] is None:
         commits = execute('git log -n 10 %s %s' % (fmt, processed['commit']))
     else:
-        commits = execute('git log --no-pager %s %s..%s' % (fmt, processed['last_commit'], processed['commit']))
+        commits = execute('git --no-pager log %s %s..%s' % (fmt, processed['last_commit'], processed['commit']))
 
     pretty_commits = map(lambda line: "<https://github.com/getlantern/lantern/commit/%s|%s>:%s" % (line.split(':')[0], line.split(':')[0], line.split(':')[1]), commits)
     pretty_commits.append('<https://github.com/getlantern/lantern/commits/%s|more...>\r\n' % branch)
