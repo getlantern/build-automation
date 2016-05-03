@@ -103,7 +103,8 @@ def send_to_slack(title, fallback, text, color="good"):
     host = "hooks.slack.com"
     payload = {"fallback": fallback,
                "title": title,
-               "text": text}
+               "text": text,
+               "color": color}
     data = {'attachments': [payload]}
     conn = httplib.HTTPSConnection(host, 443)
     conn.connect()
