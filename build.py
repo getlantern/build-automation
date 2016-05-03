@@ -157,8 +157,8 @@ def main():
                 if not args.dry_run:
                     config.set_last_build(processed['branch'], processed['commit'], processed['links'])
                     config.save()
-        finally:
-            continue
+        except Exception:
+            pass
 
 
 if __name__ == '__main__':
