@@ -9,15 +9,15 @@ Script to check for updates of release branches of Lantern repo, build and uploa
 # Install/update required packages
 brew install Caskroom/cask/virtualbox docker-machine docker python go nodejs s3cmd
 pip install pyyaml
-npm install -g appdmg
+npm install -g appdmg svgexport
 # Create docker-machine. Be sure to provide large enough disk and sufficient cpu/memory.
 docker-machine create default --driver virtualbox --virtualbox-disk-size 40000 --virtualbox-memory 3072 --virtualbox-cpu-count 3
 ```
 
 * `git clone https://github.com/getlantern/lantern.git`
 
-* Import certs to sign Mac binary and installer (have to run in terminal from GUI, remote ssh doesn't work)
-  `security import <cert.p12> -k login.keychain -P <passphrase> -A`
+* Import certs to sign Mac binary and installer.
+  `sudo security import <cert.p12> -k "/Library/Keychains/System.keychain" -P <passphrase> -A`
 
 * `SECRET_DIR` points a directory contains `bns.pfx` and `bns_cert.p12`.
 
