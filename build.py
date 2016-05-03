@@ -150,6 +150,7 @@ def process(branch, commit, dry_run):
 
 
 def main():
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--dry-run', dest='dry_run', action='store_true', help='not build/upload')
     args = parser.parse_args()
@@ -173,8 +174,16 @@ def main():
                     config.save()
         except Exception as e:
             stack = traceback.format_exc()
-            notify_error(branch, e.str(), stack)
-
+            notify_error(branch, str(e), stack)
 
 if __name__ == '__main__':
-    main()
+    pid = str(os.getpid())
+    pidfile = "./running.pid"
+    if os.path.isfile(pidfile):
+        print "%s already exists, exiting" % pidfile
+        return -1
+    file(pidfile, 'w').write(pid)
+    try:
+        main()
+    finally:
+        os.unlink(pidfile)
