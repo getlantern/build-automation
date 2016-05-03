@@ -19,13 +19,13 @@ class Config:
         with open(fname) as f:
             self.store = yaml.load(f)
 
-    def last_built(self, branch):
+    def last_build(self, branch):
         v = self.store.get(branch)
         if v is None:
             return None, None
         return v.get('commit'), v.get('s3links')
 
-    def set_last_built(self, branch, commit, s3links):
+    def set_last_build(self, branch, commit, s3links):
         v = self.store.get(branch)
         if v is None:
             v = {}
@@ -145,17 +145,20 @@ def main():
     execute.cwd = "../lantern"
     processed = []
     for branch, commit in fetch():
-        last_commit, last_links = config.last_built(branch)
-        if commit == last_commit:
-            print "skipping branch %s: head %s already uploaded" % (branch, commit)
-        else:
-            print "build branch %s: head %s is different from prev %s" % (branch, commit, last_commit)
-            links = process(branch, commit, dry_run=args.dry_run)
-            processed = {'branch': branch, 'commit': commit, 'links': links, 'last_commit': last_commit, 'last_links': last_links}
-            notify(processed)
-            if not args.dry_run:
-                config.set_last_built(processed['branch'], processed['commit'], processed['links'])
-                config.save()
+        try:
+            last_commit, last_links = config.last_build(branch)
+            if commit == last_commit:
+                print "skipping branch %s: head %s already uploaded" % (branch, commit)
+            else:
+                print "build branch %s: head %s is different from prev %s" % (branch, commit, last_commit)
+                links = process(branch, commit, dry_run=args.dry_run)
+                processed = {'branch': branch, 'commit': commit, 'links': links, 'last_commit': last_commit, 'last_links': last_links}
+                notify(processed)
+                if not args.dry_run:
+                    config.set_last_build(processed['branch'], processed['commit'], processed['links'])
+                    config.save()
+        finally:
+            continue
 
 
 if __name__ == '__main__':
