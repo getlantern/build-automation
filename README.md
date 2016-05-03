@@ -1,14 +1,28 @@
 Script to check for updates of release branches of Lantern repo, build and upload automatically, then notify through Slack channel.
 
-Prerequisites
+==To setup on Mac:
+
+* Preparing environment
+```
+# Install Homebrew
+/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+# Install/update required packages
+brew install Caskroom/cask/virtualbox docker-machine docker python go nodejs s3cmd
+pip install pyyaml
+npm install -g appdmg
+# Create docker-machine. Be sure to provide large enough disk and sufficient cpu/memory.
+docker-machine create default --driver virtualbox --virtualbox-disk-size 40000 --virtualbox-memory 3072 --virtualbox-cpu-count 3
+```
 
 * `git clone https://github.com/getlantern/lantern.git`
 
-* Make sure you can run at least `make package-windows package-linux`
+* Import certs to sign Mac binary and installer (have to run in terminal from GUI, remote ssh doesn't work)
+  `security import <cert.p12> -k login.keychain -P <passphrase> -A`
 
-  * `SECRET_DIR` points a directory contains `bns.pfx`
+* `SECRET_DIR` points a directory contains `bns.pfx` and `bns_cert.p12`.
 
-  * `security import <cert.p12> -k login.keychain -P <passphrase> -A` (on Mac, if you want to also build Mac installer)
+* `BNS_CERT_PASS` is exported
 
-* [`s3cmd`](http://s3tools.org/usage) properly configured
+* `SLACK_WEBHOOK_PATH` is exported, which is the absolute path after `https://hooks.slack.com` in the webhook url.
 
+* [`s3cmd`](http://s3tools.org/usage) is properly configured

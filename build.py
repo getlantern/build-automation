@@ -59,12 +59,12 @@ execute.cwd = None
 def build(branch, version, dry_run):
     execute('git checkout ' + branch)
     if not dry_run:
-        execute('VERSION=' + version + ' make package-windows package-linux')
+        execute('VERSION=' + version + ' make packages')
 
 
 def upload(version, bucket, dry_run):
     installers = map(lambda i: i.replace('VERSION', version), [
-        # 'lantern-installer.dmg',
+        'lantern-installer.dmg',
         'lantern-installer.exe',
         'lantern_VERSION_amd64.deb',
         'lantern_VERSION_i386.deb'
@@ -87,47 +87,49 @@ def upload(version, bucket, dry_run):
 
 def fetch():
     execute('git fetch -p')
-    output = execute('git branch -rl | grep -E "release-\d*.\d*.\d*$"')
+    output = execute('git branch -rl | grep -E "release-[0-9]*.[0-9]*.[0-9]*$"')
     branches = map(lambda l: l.strip(), output)
+    branches.append('origin/master')
+    branches.append('origin/devel')
     return map(lambda b: (b, execute('git show -s --format=%h ' + b)[0].strip()), branches)
 
 
 def send_to_slack(title, fallback, text):
     host = "hooks.slack.com"
-    path = "/services/T02783BRS/B15AN4RFH/uTu4tjW9sDdg7Y091asKmoJb"
     payload = {"fallback": fallback,
                "title": title,
                "text": text}
     data = {'attachments': [payload]}
     conn = httplib.HTTPSConnection(host, 443)
     conn.connect()
-    conn.request('POST', path, headers={'content-type': 'application/json'}, body=json.dumps(data))
+    conn.request('POST', send_to_slack.path, headers={'content-type': 'application/json'}, body=json.dumps(data))
     response = conn.getresponse()
     if response.status != httplib.OK:
         raise RuntimeError("invalid response status %d" % response.status)
+send_to_slack.path = None
 
 
 def notify(processed):
     title_tmpl = string.Template('Latest installers of <https://github.com/getlantern/lantern/tree/$branch|$branch>:\r\n$links\r\n')
     text_tmpl = string.Template('Changes since $last_commit:\r\n$commits')
-    for i in processed:
-        branch = i['branch'].split('/')[1]
-        pretty_links = map(lambda l: '<' + l + '|' + l.split('_', 3)[3] + '>', i['links'])
-        title = title_tmpl.substitute({'branch': branch, 'links': '\r\n'.join(pretty_links)})
-        fmt = '--format="%h: (%an) %s, %ar"'
-        if i['last_commit'] is None:
-            commits = execute('git log -n 10 %s %s' % (fmt, i['commit']))
-        else:
-            commits = execute('git log --no-pager %s %s..%s' % (fmt, i['last_commit'], i['commit']))
 
-        pretty_commits = map(lambda line: "<https://github.com/getlantern/lantern/commit/%s|%s>:%s" % (line.split(':')[0], line.split(':')[0], line.split(':')[1]), commits)
-        pretty_commits.append('<https://github.com/getlantern/lantern/commits/%s|more...>\r\n' % branch)
-        text = text_tmpl.substitute({'last_commit': i['last_commit'], 'commits': ''.join(pretty_commits)})
-        send_to_slack(title, "commits for %s" % i['commit'], text)
+    branch = processed['branch'].split('/')[1]
+    pretty_links = map(lambda l: '<' + l + '|' + l.split('_', 3)[3] + '>', processed['links'])
+    title = title_tmpl.substitute({'branch': branch, 'links': '\r\n'.join(pretty_links)})
+    fmt = '--format="%h: (%an) %s, %ar"'
+    if processed['last_commit'] is None:
+        commits = execute('git log -n 10 %s %s' % (fmt, processed['commit']))
+    else:
+        commits = execute('git log --no-pager %s %s..%s' % (fmt, processed['last_commit'], processed['commit']))
+
+    pretty_commits = map(lambda line: "<https://github.com/getlantern/lantern/commit/%s|%s>:%s" % (line.split(':')[0], line.split(':')[0], line.split(':')[1]), commits)
+    pretty_commits.append('<https://github.com/getlantern/lantern/commits/%s|more...>\r\n' % branch)
+    text = text_tmpl.substitute({'last_commit': processed['last_commit'], 'commits': ''.join(pretty_commits)})
+    send_to_slack(title, "commits for %s" % processed['commit'], text)
 
 
 def process(branch, commit, dry_run):
-    version = string.split(branch, '-')[1] + '_' + commit
+    version = string.split(branch, '/')[1] + '_' + commit
     build(branch, version, dry_run)
     links = upload(version, "lantern-continuous-build", dry_run)
     return links
@@ -137,6 +139,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--dry-run', dest='dry_run', action='store_true', help='not build/upload')
     args = parser.parse_args()
+    send_to_slack.path = os.environ["SLACK_WEBHOOK_PATH"]
 
     config = Config("./result.yml")
     execute.cwd = "../lantern"
@@ -148,13 +151,11 @@ def main():
         else:
             print "build branch %s: head %s is different from prev %s" % (branch, commit, last_commit)
             links = process(branch, commit, dry_run=args.dry_run)
-            processed.append({'branch': branch, 'commit': commit, 'links': links, 'last_commit': last_commit, 'last_links': last_links})
-
-    notify(processed)
-    if not args.dry_run:
-        for i in processed:
-            config.set_last_built(i['branch'], i['commit'], i['links'])
-        config.save()
+            processed = {'branch': branch, 'commit': commit, 'links': links, 'last_commit': last_commit, 'last_links': last_links}
+            notify(processed)
+            if not args.dry_run:
+                config.set_last_built(processed['branch'], processed['commit'], processed['links'])
+                config.save()
 
 
 if __name__ == '__main__':
