@@ -99,7 +99,7 @@ def fetch():
     return map(lambda b: (b, execute('git show -s --format=%h ' + b)[0].strip()), branches)
 
 
-def send_to_slack(title, fallback, text):
+def send_to_slack(title, fallback, text, color="good"):
     host = "hooks.slack.com"
     payload = {"fallback": fallback,
                "title": title,
@@ -134,7 +134,7 @@ def notify(processed):
 
 
 def notify_error(branch, error, stack):
-    send_to_slack("Error build %s" % branch, error, error + "\r\n" + stack)
+    send_to_slack("Error build %s" % branch, error, error + "\r\n" + stack, color="danger")
 
 
 def process(branch, commit, dry_run):
