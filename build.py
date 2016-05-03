@@ -181,9 +181,9 @@ if __name__ == '__main__':
     pidfile = "./running.pid"
     if os.path.isfile(pidfile):
         print "%s already exists, exiting" % pidfile
-        return -1
-    file(pidfile, 'w').write(pid)
-    try:
-        main()
-    finally:
-        os.unlink(pidfile)
+    else:
+        file(pidfile, 'w').write(pid)
+        try:
+            main()
+        finally:
+            os.unlink(pidfile)
