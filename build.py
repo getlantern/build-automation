@@ -6,8 +6,13 @@ import json
 import os
 import string
 import time
+import traceback
 import yaml
 from subprocess import Popen, PIPE
+
+
+def log(text):
+    print time.strftime("%Y/%m/%d %H:%M:%S") + ' - ' + text
 
 
 class Config:
@@ -39,7 +44,7 @@ class Config:
 
 
 def execute(command, print_output=True):
-    print "> " + command
+    log("> " + command)
     popen = Popen(command, stdout=PIPE, stderr=PIPE, shell=True, cwd=execute.cwd)
     itout = iter(popen.stdout.readline, b"")
     iterr = iter(popen.stderr.readline, b"")
@@ -51,7 +56,7 @@ def execute(command, print_output=True):
         print ''.join(stderr_lines)
     popen.communicate()
     if popen.returncode is not None and popen.returncode != 0:
-        raise RuntimeError
+        raise RuntimeError(''.join(stderr_lines))
     return stdout_lines
 execute.cwd = None
 
@@ -128,6 +133,10 @@ def notify(processed):
     send_to_slack(title, "commits for %s" % processed['commit'], text)
 
 
+def notify_error(branch, error, stack):
+    send_to_slack("Error build %s" % branch, error, error + "\r\n" + stack)
+
+
 def process(branch, commit, dry_run):
     local_branch = string.split(branch, '/')[1]
     version = local_branch.rpartition('-')[2]
@@ -153,17 +162,18 @@ def main():
         try:
             last_commit, last_links = config.last_build(branch)
             if commit == last_commit:
-                print "skipping branch %s: head %s already uploaded" % (branch, commit)
+                log("skipping branch %s: head %s already uploaded" % (branch, commit))
             else:
-                print "build branch %s: head %s is different from prev %s" % (branch, commit, last_commit)
+                log("build branch %s: head %s is different from prev %s" % (branch, commit, last_commit))
                 links = process(branch, commit, dry_run=args.dry_run)
                 processed = {'branch': branch, 'commit': commit, 'links': links, 'last_commit': last_commit, 'last_links': last_links}
                 notify(processed)
                 if not args.dry_run:
                     config.set_last_build(processed['branch'], processed['commit'], processed['links'])
                     config.save()
-        except Exception:
-            pass
+        except Exception as e:
+            stack = traceback.format_exc()
+            notify_error(branch, e.str(), stack)
 
 
 if __name__ == '__main__':
