@@ -129,7 +129,12 @@ def notify(processed):
 
 
 def process(branch, commit, dry_run):
-    version = string.split(branch, '/')[1] + '_' + commit
+    local_branch = string.split(branch, '/')[1]
+    version = local_branch.rpartition('-')[2]
+    # appdmg doesn't allow volumes name to exceed 27 chars. Simple math gives 11 here.
+    if len(version) > 11:
+        version = version[:11]
+    version = version + '_' + commit
     build(branch, version, dry_run)
     links = upload(version, "lantern-continuous-build", dry_run)
     return links
