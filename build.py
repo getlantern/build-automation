@@ -130,7 +130,8 @@ def notify(processed):
         commits = execute('git --no-pager log %s %s..%s' % (fmt, processed['last_commit'], processed['commit']))
 
     pretty_commits = map(lambda line: "<https://github.com/getlantern/lantern/commit/%s|%s>:%s" % (line.split(':')[0], line.split(':')[0], line.split(':')[1]), commits)
-    pretty_commits.append('<https://github.com/getlantern/lantern/commits/%s|more...>\r\n' % branch)
+    if processed['last_commit'] is None:
+        pretty_commits.append('<https://github.com/getlantern/lantern/commits/%s|more...>\r\n' % branch)
     text = text_tmpl.substitute({'last_commit': processed['last_commit'], 'commits': ''.join(pretty_commits)})
     send_to_slack(title, "commits for %s" % processed['commit'], text)
 
