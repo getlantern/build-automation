@@ -93,7 +93,7 @@ def upload(version, bucket, dry_run):
 
 def fetch():
     execute('git fetch -p')
-    output = execute('git branch -rl | grep -E "release-[0-9]*.[0-9]*.[0-9]*$"')
+    output = execute('git branch -rl | grep -E "origin/release-[0-9]*.[0-9]*.[0-9]*$"')
     branches = map(lambda l: l.strip(), output)
     branches.append('origin/master')
     branches.append('origin/devel')
