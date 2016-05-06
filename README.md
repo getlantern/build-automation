@@ -9,7 +9,7 @@ Script to check for updates of release branches of Lantern repo, build and uploa
 # Install/update required packages
 brew install Caskroom/cask/virtualbox docker-machine docker python go nodejs s3cmd Caskroom/cask/java android-ndk
 pip install pyyaml
-npm install -g appdmg svgexport
+npm install -g gulp-cli appdmg svgexport
 # Create docker-machine. Be sure to provide large enough disk and sufficient cpu/memory.
 docker-machine create default --driver virtualbox --virtualbox-disk-size 40000 --virtualbox-memory 3072 --virtualbox-cpu-count 3
 ```
