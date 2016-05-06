@@ -62,7 +62,7 @@ execute.cwd = None
 
 
 def build(branch, version, dry_run):
-    execute('git checkout ' + branch)
+    execute('git checkout -- . && git checkout ' + branch)
     if not dry_run:
         # execute('VERSION=' + version + ' make packages') - android is not supported yet
         execute('VERSION=' + version + ' make docker-package-windows docker-package-linux package-darwin')
